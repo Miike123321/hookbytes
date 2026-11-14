@@ -20,6 +20,9 @@ return new class extends Migration
     public function up(): void
     {
         $schema = Schema::connection($this->getConnection());
+        if ($schema->hasTable('telescope_entries')) {
+            return;
+        }
 
         $schema->create('telescope_entries', function (Blueprint $table) {
             $table->bigIncrements('sequence');
@@ -61,10 +64,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        $schema = Schema::connection($this->getConnection());
-
-        $schema->dropIfExists('telescope_entries_tags');
-        $schema->dropIfExists('telescope_entries');
-        $schema->dropIfExists('telescope_monitoring');
+        // The canonical Telescope tables are owned by the earlier migration.
     }
 };

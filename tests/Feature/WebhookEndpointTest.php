@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\WebhookEndpoint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class WebhookEndpointTest extends TestCase
@@ -510,6 +511,8 @@ class WebhookEndpointTest extends TestCase
 
     public function test_short_url_api_ingestion_endpoint_works()
     {
+        Queue::fake();
+
         $webhook = WebhookEndpoint::factory()->create([
             'project_id' => $this->project->id,
             'destination_urls' => ['https://example.com/webhook'],
@@ -572,7 +575,7 @@ class WebhookEndpointTest extends TestCase
 
         $response->assertStatus(404)
             ->assertJson([
-                'error' => 'Webhook endpoint not found'
+                'error' => 'Маршрут вебхука не найден.'
             ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Event;
+use App\Models\Settings;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -32,6 +33,24 @@ class HandleFailedWebhookEvent implements ShouldQueue
      */
     public function handle(): void
     {
+        if (!Settings::current()->webhook_processing_enabled) {
+            if (config('queue.default') === 'sync') {
+                return;
+            }
+
+            $deferredJob = new static($this->event, $this->failureReason, $this->totalAttempts);
+
+            if ($this->connection) {
+                $deferredJob->onConnection($this->connection);
+            }
+
+            $deferredJob->delay(now()->addMinute());
+            dispatch($deferredJob);
+            $this->delete();
+
+            return;
+        }
+
         try {
             // Mark event as permanently failed
             $this->event->update([

@@ -18,8 +18,10 @@ class UserController extends Controller
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($user) {
-                // Add role field (for now, assume admin if id is 1, otherwise user)
-                $user->role = $user->id === 1 ? 'admin' : 'user';
+                $ownerEmail = (string) config('admin.owner_email', '');
+                $user->role = $ownerEmail !== '' && strtolower($user->email) === strtolower($ownerEmail)
+                    ? 'admin'
+                    : 'user';
                 return $user;
             });
 
@@ -35,7 +37,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:user,admin'
+            'role' => 'required|in:user'
         ]);
 
         if ($validator->fails()) {
@@ -72,16 +74,20 @@ class UserController extends Controller
      */
     public function destroy($id)
     {
-        // Prevent deletion of the first admin user
-        if ($id == 1) {
+        $user = User::findOrFail($id);
+        $ownerEmail = (string) config('admin.owner_email', '');
+
+        if (
+            ($ownerEmail !== '' && strtolower($user->email) === strtolower($ownerEmail))
+            || (string) $user->id === (string) auth()->id()
+        ) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot delete the primary admin user'
+                'message' => 'Cannot delete the installation owner or your own account'
             ], 403);
         }
 
         try {
-            $user = User::findOrFail($id);
             $user->delete();
 
             return response()->json([

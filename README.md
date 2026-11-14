@@ -71,7 +71,7 @@ HookBytes is built on a modern, scalable architecture:
 ## 📦 Quick Start
 
 ### Prerequisites
-- PHP 8.2 or higher
+- PHP 8.2–8.4 for the current Composer lockfile (`nette/schema` 1.3.2 does not support PHP 8.5)
 - Composer
 - Node.js & NPM (for asset compilation)
 - SQLite, MySQL, or PostgreSQL
@@ -432,6 +432,14 @@ php artisan webhook:replay --status=failed --project="My Project"
 
 ## 🔍 Monitoring
 
+### Operations Admin Panel
+
+Set `ADMIN_EMAIL` in `.env` (for example, `ADMIN_EMAIL=owner@example.com`) to the email address of the existing, verified account that owns the installation, run `php artisan migrate`, then sign in with that account and open `/admin/operations`. Only that exact account can access the operations panel and user-management endpoints.
+
+The panel can stop new webhook intake and pause webhook processing while remaining available to the owner. Jobs already running may finish; queued webhook jobs are deferred and resume after the panel is enabled again. It also shows queue depth, database-queue job details, failed jobs, recent events, incoming JSON, outgoing delivery payloads and responses, and the latest application log lines.
+
+Outgoing request payloads are saved for deliveries created after the request-payload migration is applied. For Redis queues, the panel shows queue depth; detailed job rows are available for the database queue driver. Use `database` or `redis` for durable queueing and pausing; the `sync` driver has no persistent queue. If logs are sent to `stderr` rather than files, view them through the host/container service logs.
+
 ### Laravel Telescope
 Access the Telescope dashboard at `/telescope` for:
 - Request monitoring
@@ -500,6 +508,102 @@ HookBytes is open-source software licensed under the [MIT License](LICENSE).
 - [ ] **Load Testing Dashboard**: Real-time performance monitoring
 - [ ] **Test Data Management**: Advanced test data generation
 - [ ] **Cross-browser Testing**: Automated browser compatibility tests
+
+## Политики шлюза и надежность
+
+Для маршрута откройте «Edit Webhook Endpoint» и выберите «Политики шлюза и надежность» либо «Маппинг Payload». Эти страницы доступны владельцу установки, указанному в `ADMIN_EMAIL`. Параметры привязаны к endpoint; активная конфигурация и mapping-правила кешируются в Redis.
+
+Доступны синхронная проверка JSON Schema с ответом `422`, дедупликация по HTTP-заголовку или JSON Path, упорядоченная трансформация payload, Circuit Breaker, ограничение исходящего RPS через Redis, последовательная доставка событий по ID заказа и асинхронные Telegram/JSON Webhook DLQ-алерты. Исходный JSON события сохраняется; в `event_deliveries.request_payload` записывается именно отправленное после маппинга тело.
+
+### Redis и миграции
+
+Для локального запуска на macOS установите и запустите Redis, затем используйте `predis` из Composer:
+
+```bash
+brew install redis
+brew services start redis
+```
+
+Проверьте `.env`: `REDIS_CLIENT=predis`, `REDIS_HOST=127.0.0.1`, `REDIS_PORT=6379`. Примените миграции и запустите отдельный worker:
+
+```bash
+php artisan migrate
+php artisan queue:work --queue=default --tries=5
+```
+
+Укажите существующий email владельца в `ADMIN_EMAIL`, войдите под этим подтвержденным аккаунтом и откройте настройки endpoint. Для быстрой DLQ-проверки задайте endpoint `max_attempts=1` и малую `retry_delay` в обычных настройках маршрута. Токен Telegram и URL кастомного алерта хранятся зашифрованными приложением; не меняйте `APP_KEY` после сохранения значений.
+
+### Сквозная проверка cURL
+
+Замените `<project-slug>/<endpoint-slug>` на путь созданного endpoint. Для примеров endpoint должен быть активен, а при выбранной аутентификации добавьте соответствующий секрет/подпись.
+
+1. **JSON Schema.** Включите проверку, задайте Schema с обязательным `order.id` типа integer, затем отправьте невалидный payload. Ожидается `422` со структурой `errors`; в очереди и таблице событий новой записи не будет.
+
+   ```bash
+   curl -i -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' \
+     -d '{"order":{"id":"не-число"}}'
+   ```
+
+2. **Дедупликация.** Укажите источник `X-Idempotency-Key` и отправьте один и тот же запрос дважды. Первый запрос ставится в очередь; повтор получает настроенный `200`/`202`, событие со статусом `deduplicated` и не создает вторую задачу.
+
+   ```bash
+   curl -i -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' -H 'X-Idempotency-Key: order-42' \
+     -d '{"order":{"id":42}}'
+   ```
+
+3. **Трансформация.** В «Маппинг Payload» добавьте правило `order.id → id`, тип `int`, проверьте его в Live-песочнице и сохраните. В карточке доставки проверьте исходящий JSON после запроса:
+
+   ```bash
+   curl -i -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' -H 'X-Idempotency-Key: mapping-42' \
+     -d '{"order":{"id":42}}'
+   ```
+
+4. **Circuit Breaker и исходящий RPS.** Установите для endpoint целевой URL тестового приемника, который отвечает `500`, включите Circuit Breaker с порогом `1` и отправьте событие. Проверьте состояние `OPEN`, дождитесь cooldown и проверьте `HALF_OPEN` на пробном запросе. Чтобы проверить RPS, отправьте серию запросов ниже лимита по времени и сравните время исходящих доставок в журнале:
+
+   ```bash
+   for i in 1 2 3 4 5; do
+     curl -sS -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+       -H 'Content-Type: application/json' -H "X-Idempotency-Key: rps-$i" \
+       -d "{\"order\":{\"id\":$i}}"
+   done
+   ```
+
+5. **Порядок событий.** Включите causal ordering по `order.id`, отправьте два события с одинаковым ID заказа и разными данными, затем проверьте временные метки доставок. Событие с более ранним порядком приема должно завершить доставку раньше следующего.
+
+   ```bash
+   curl -sS -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' -H 'X-Idempotency-Key: order-42-created' \
+     -d '{"order":{"id":42},"event":"created"}'
+   curl -sS -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' -H 'X-Idempotency-Key: order-42-updated' \
+     -d '{"order":{"id":42},"event":"updated"}'
+   ```
+
+6. **DLQ-алерт и Replay.** Выберите Telegram или контролируемый JSON Webhook, задайте шаблон и нажмите «Отправить тестовый алерт». Для сквозного теста доставки задайте целевому приемнику ответ `500`, `max_attempts=1` и отправьте:
+
+   ```bash
+   curl -i -X POST 'http://127.0.0.1:8000/api/webhook/<project-slug>/<endpoint-slug>' \
+     -H 'Content-Type: application/json' -H 'X-Idempotency-Key: dlq-42' \
+     -d '{"order":{"id":42}}'
+   ```
+
+   После финального отказа должен прийти алерт со ссылкой на карточку события, где доступен Replay.
+
+Новые unit- и feature-тесты запускаются так:
+
+```bash
+php artisan test tests/Unit/JsonSchemaValidationServiceTest.php \
+  tests/Unit/PayloadTransformerServiceTest.php \
+  tests/Feature/WebhookReliabilityIngressTest.php \
+  tests/Feature/WebhookDeliveryReliabilityTest.php
+```
+
+Полный набор запускается командой `php artisan test`.
+
+---
 
 ## 🌟 Star History
 

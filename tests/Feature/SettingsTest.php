@@ -27,11 +27,11 @@ class SettingsTest extends TestCase
         $response = $this->get('/dashboard/settings');
 
         $response->assertStatus(200)
-            ->assertViewIs('dashboard.settings')
-            ->assertSee('Application Settings')
-            ->assertSee('General Settings')
+            ->assertViewIs('dashboard.settings.index')
+            ->assertViewHas('settings')
             ->assertSee('Notification Settings')
-            ->assertSee('Security Settings');
+            ->assertSee('Slack Notifications')
+            ->assertSee('Email Notifications');
     }
 
     public function test_general_settings_can_be_updated()

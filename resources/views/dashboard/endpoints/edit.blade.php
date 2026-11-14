@@ -19,6 +19,11 @@
                 <p class="text-gray-600">Edit webhook endpoint for {{ $endpoint->project->name }}</p>
             </div>
 
+            <div class="flex flex-wrap gap-3 mb-6">
+                <a href="{{ route('dashboard.endpoints.gateway', $endpoint) }}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Политики шлюза и надежность</a>
+                <a href="{{ route('dashboard.endpoints.mappings', $endpoint) }}" class="px-4 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-800">Маппинг Payload</a>
+            </div>
+
             @if ($errors->any())
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
                     <ul class="list-disc list-inside">

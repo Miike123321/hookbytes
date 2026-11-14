@@ -24,6 +24,8 @@ class Event extends Model
         'delivery_attempts',
         'last_attempt_at',
         'delivered_at',
+        'failed_at',
+        'causal_order_key',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class Event extends Model
         'delivery_attempts' => 'integer',
         'last_attempt_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'failed_at' => 'datetime',
     ];
 
     public function project(): BelongsTo

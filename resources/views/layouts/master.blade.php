@@ -78,6 +78,11 @@
                         <a href="{{ route('dashboard.settings') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium {{ request()->routeIs('dashboard.settings*') ? 'bg-gray-100 dark:bg-gray-700' : '' }}">
                             <i class="fas fa-cog mr-1"></i> Settings
                         </a>
+                        @if (auth()->check() && config('admin.owner_email') && strtolower(auth()->user()->email) === strtolower(config('admin.owner_email')))
+                            <a href="{{ route('admin.operations.index') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium {{ request()->routeIs('admin.operations*') ? 'bg-gray-100 dark:bg-gray-700' : '' }}">
+                                <i class="fas fa-server mr-1"></i> Admin
+                            </a>
+                        @endif
                         <a href="#" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                             <i class="fas fa-book mr-1"></i> API Docs
                         </a>
@@ -109,6 +114,11 @@
                         <a href="{{ route('dashboard.settings') }}" class="block px-3 py-2 rounded-md text-base font-medium {{ request()->routeIs('dashboard.settings*') ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700' }}">
                             <i class="fas fa-cog mr-2"></i> Settings
                         </a>
+                        @if (auth()->check() && config('admin.owner_email') && strtolower(auth()->user()->email) === strtolower(config('admin.owner_email')))
+                            <a href="{{ route('admin.operations.index') }}" class="block px-3 py-2 rounded-md text-base font-medium {{ request()->routeIs('admin.operations*') ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                <i class="fas fa-server mr-2"></i> Admin
+                            </a>
+                        @endif
                         <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700">
                             <i class="fas fa-book mr-2"></i> API Docs
                         </a>

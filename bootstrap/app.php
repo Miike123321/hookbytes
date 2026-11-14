@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'force.https' => \App\Http\Middleware\ForceHttps::class,
             'api.auth' => \App\Http\Middleware\ApiAuthentication::class,
+            'admin.owner' => \App\Http\Middleware\EnsureAdminOwner::class,
         ]);
         
         // CSRF handling moved to avoid container resolution issues

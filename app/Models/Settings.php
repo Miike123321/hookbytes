@@ -13,11 +13,15 @@ class Settings extends Model
         'slack_notifications_enabled',
         'notification_email',
         'email_notifications_enabled',
+        'webhook_ingress_enabled',
+        'webhook_processing_enabled',
     ];
 
     protected $casts = [
         'slack_notifications_enabled' => 'boolean',
         'email_notifications_enabled' => 'boolean',
+        'webhook_ingress_enabled' => 'boolean',
+        'webhook_processing_enabled' => 'boolean',
     ];
 
     /**
@@ -25,6 +29,6 @@ class Settings extends Model
      */
     public static function current()
     {
-        return static::first() ?? static::create([]);
+        return static::first() ?? static::create([])->refresh();
     }
 }

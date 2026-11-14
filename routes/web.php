@@ -6,6 +6,9 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebhookTransformationController;
 use App\Http\Controllers\WebhookRoutingRuleController;
+use App\Http\Controllers\GatewayPolicyController;
+use App\Http\Controllers\Admin\OperationsController;
+use App\Http\Controllers\Admin\EnvironmentSettingsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -42,6 +45,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/dashboard/endpoints/{endpoint}', [DashboardController::class, 'deleteEndpoint'])->name('dashboard.endpoints.destroy');
     Route::post('/dashboard/endpoints/{endpoint}/test', [DashboardController::class, 'testEndpoint'])->name('dashboard.endpoints.test');
     Route::get('/dashboard/endpoints/{endpoint}/events', [DashboardController::class, 'endpointEvents'])->name('dashboard.endpoints.events');
+
+    Route::middleware('admin.owner')->group(function () {
+        Route::get('/dashboard/endpoints/{endpoint}/gateway-policies', [GatewayPolicyController::class, 'edit'])->name('dashboard.endpoints.gateway');
+        Route::put('/dashboard/endpoints/{endpoint}/gateway-policies', [GatewayPolicyController::class, 'update'])->name('dashboard.endpoints.gateway.update');
+        Route::post('/dashboard/endpoints/{endpoint}/gateway-policies/circuit-breaker/reset', [GatewayPolicyController::class, 'resetCircuitBreaker'])->name('dashboard.endpoints.gateway.circuit-breaker.reset');
+        Route::post('/dashboard/endpoints/{endpoint}/gateway-policies/test-alert', [GatewayPolicyController::class, 'sendTestAlert'])->name('dashboard.endpoints.gateway.test-alert');
+        Route::get('/dashboard/endpoints/{endpoint}/payload-mappings', [GatewayPolicyController::class, 'editMappings'])->name('dashboard.endpoints.mappings');
+        Route::post('/dashboard/endpoints/{endpoint}/payload-mappings', [GatewayPolicyController::class, 'saveMappings'])->name('dashboard.endpoints.mappings.save');
+        Route::post('/dashboard/endpoints/{endpoint}/payload-mappings/preview', [GatewayPolicyController::class, 'previewMappings'])->name('dashboard.endpoints.mappings.preview');
+    });
     
     // Webhook Transformations
     Route::get('/dashboard/endpoints/{endpoint}/transformations', [WebhookTransformationController::class, 'index'])->name('transformations.index');
@@ -83,9 +96,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
     // User Management Routes
-    Route::get('/dashboard/users', [UserController::class, 'index'])->name('dashboard.users.index');
-    Route::post('/dashboard/users', [UserController::class, 'store'])->name('dashboard.users.store');
-    Route::delete('/dashboard/users/{id}', [UserController::class, 'destroy'])->name('dashboard.users.destroy');
+    Route::middleware('admin.owner')->group(function () {
+        Route::get('/dashboard/users', [UserController::class, 'index'])->name('dashboard.users.index');
+        Route::post('/dashboard/users', [UserController::class, 'store'])->name('dashboard.users.store');
+        Route::delete('/dashboard/users/{id}', [UserController::class, 'destroy'])->name('dashboard.users.destroy');
+    });
 });
+
+Route::middleware(['auth', 'verified', 'admin.owner'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/operations', [OperationsController::class, 'index'])->name('operations.index');
+        Route::post('/operations/state', [OperationsController::class, 'updateState'])->name('operations.state');
+        Route::get('/operations/events/{event}', [OperationsController::class, 'showEvent'])->name('operations.events.show');
+        Route::get('/operations/logs', [OperationsController::class, 'logs'])->name('operations.logs');
+        Route::get('/environment', [EnvironmentSettingsController::class, 'index'])->name('environment.index');
+        Route::put('/environment', [EnvironmentSettingsController::class, 'update'])->name('environment.update');
+    });
 
 require __DIR__.'/auth.php';

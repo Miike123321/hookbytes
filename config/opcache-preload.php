@@ -10,7 +10,8 @@
  */
 
 // Only run in production
-if (php_sapi_name() !== 'cli' && $_ENV['APP_ENV'] !== 'production') {
+$appEnvironment = $_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? getenv('APP_ENV');
+if ($appEnvironment !== 'production') {
     return;
 }
 
@@ -86,20 +87,22 @@ $appFiles = [
     '/app/Providers/RouteServiceProvider.php',
 ];
 
-// Function to safely preload files
-function preloadFile($file) {
-    global $basePath;
-    $fullPath = $basePath . $file;
-    
-    if (file_exists($fullPath)) {
-        try {
-            opcache_compile_file($fullPath);
-            echo "Preloaded: $file\n";
-        } catch (Throwable $e) {
-            echo "Failed to preload $file: " . $e->getMessage() . "\n";
+if (!function_exists('preloadFile')) {
+    function preloadFile($file)
+    {
+        global $basePath;
+        $fullPath = $basePath . $file;
+
+        if (file_exists($fullPath)) {
+            try {
+                opcache_compile_file($fullPath);
+                echo "Preloaded: $file\n";
+            } catch (Throwable $e) {
+                echo "Failed to preload $file: " . $e->getMessage() . "\n";
+            }
+        } else {
+            echo "File not found: $file\n";
         }
-    } else {
-        echo "File not found: $file\n";
     }
 }
 

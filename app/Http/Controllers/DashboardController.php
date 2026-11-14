@@ -7,6 +7,7 @@ use App\Models\EventDelivery;
 use App\Models\Project;
 use App\Models\WebhookEndpoint;
 use App\Jobs\ProcessWebhookEvent;
+use App\Services\GatewayPolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -92,6 +93,8 @@ class DashboardController extends Controller
      */
     public function replayEvent(Event $event)
     {
+        $causalOrderKey = $this->causalOrderKeyFor($event);
+
         // Create a new event with the same payload
         $newEvent = Event::create([
             'event_id' => \Illuminate\Support\Str::uuid(),
@@ -101,6 +104,7 @@ class DashboardController extends Controller
             'payload' => $event->payload,
             'headers' => $event->headers,
             'status' => 'pending',
+            'causal_order_key' => $causalOrderKey,
         ]);
 
         // Dispatch the job
@@ -560,6 +564,7 @@ class DashboardController extends Controller
                     'headers' => $originalEvent->headers,
                     'signature' => $originalEvent->signature,
                     'status' => 'pending',
+                    'causal_order_key' => $this->causalOrderKeyFor($originalEvent),
                 ]);
 
                 // Dispatch the webhook processing job
@@ -583,6 +588,23 @@ class DashboardController extends Controller
                 'message' => 'Failed to retry events: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function causalOrderKeyFor(Event $event): ?string
+    {
+        $policy = app(GatewayPolicyService::class)->forEndpoint($event->webhookEndpoint);
+        if (!$policy['causal_ordering_enabled']) {
+            return null;
+        }
+
+        $path = str_starts_with($policy['causal_ordering_path'], '$.')
+            ? substr($policy['causal_ordering_path'], 2)
+            : ltrim($policy['causal_ordering_path'], '$');
+        $entityId = data_get($event->payload, $path);
+
+        return is_scalar($entityId) && (string) $entityId !== ''
+            ? hash('sha256', $event->project_id . ':' . (string) $entityId)
+            : null;
     }
 
     /**

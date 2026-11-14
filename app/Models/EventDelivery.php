@@ -10,6 +10,7 @@ class EventDelivery extends Model
     protected $fillable = [
         'event_id',
         'destination_url',
+        'request_payload',
         'attempt_number',
         'status',
         'response_code',
@@ -22,6 +23,7 @@ class EventDelivery extends Model
 
     protected $casts = [
         'response_headers' => 'array',
+        'request_payload' => 'array',
         'attempt_number' => 'integer',
         'response_code' => 'integer',
         'latency_ms' => 'integer',

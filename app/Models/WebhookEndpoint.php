@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class WebhookEndpoint extends Model
@@ -21,6 +22,7 @@ class WebhookEndpoint extends Model
         'auth_method',
         'auth_secret',
         'is_active',
+        'gateway_policy_active',
         'retry_config',
         'headers_config',
     ];
@@ -30,6 +32,7 @@ class WebhookEndpoint extends Model
         'retry_config' => 'array',
         'headers_config' => 'array',
         'is_active' => 'boolean',
+        'gateway_policy_active' => 'boolean',
     ];
 
     protected $hidden = [
@@ -64,6 +67,16 @@ class WebhookEndpoint extends Model
     public function activeRoutingRules(): HasMany
     {
         return $this->routingRules()->active()->orderedByPriority();
+    }
+
+    public function gatewayPolicy(): HasOne
+    {
+        return $this->hasOne(WebhookEndpointPolicy::class, 'webhook_endpoint_id');
+    }
+
+    public function payloadMappings(): HasMany
+    {
+        return $this->hasMany(WebhookPayloadMapping::class, 'webhook_endpoint_id');
     }
 
     protected static function boot()
